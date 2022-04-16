@@ -383,12 +383,13 @@ fn spawn_level(
         let white_image_handle = images.add(white_image);
 
         if ldtk_settings.level_background == LevelBackground::Rendered {
-            let settings = LayerSettings::new(
+            let mut settings = LayerSettings::new(
                 MapSize(1, 1),
                 ChunkSize(1, 1),
                 TileSize(level.px_wid as f32, level.px_hei as f32),
                 TextureSize(level.px_wid as f32, level.px_hei as f32),
             );
+            settings.cull = false;
 
             let (mut layer_builder, layer_entity) =
                 LayerBuilder::<TileBundle>::new(commands, settings, map.id, layer_id);
@@ -512,6 +513,7 @@ fn spawn_level(
 
                     let mut settings =
                         LayerSettings::new(map_size, CHUNK_SIZE, tile_size, texture_size);
+                    settings.cull = false;
 
                     if let Some(tileset_definition) = tileset_definition {
                         settings.grid_size = Vec2::splat(layer_instance.grid_size as f32);
