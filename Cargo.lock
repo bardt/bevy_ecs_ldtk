@@ -450,7 +450,6 @@ dependencies = [
 [[package]]
 name = "bevy_ecs_tilemap"
 version = "0.6.0"
-source = "git+https://github.com/StarArawn/bevy_ecs_tilemap#7ed62967a130dc882c17ce736e75dc8735940d70"
 dependencies = [
  "bevy",
  "bytemuck",
