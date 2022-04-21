@@ -7,7 +7,9 @@ use std::collections::{HashMap, HashSet};
 use heron::prelude::*;
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let camera = OrthographicCameraBundle::new_2d();
+    let mut camera = OrthographicCameraBundle::new_2d();
+    camera.transform.translation.x = 512.;
+    camera.transform.translation.y = 472.;
     commands.spawn_bundle(camera);
 
     asset_server.watch_for_changes().unwrap();

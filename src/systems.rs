@@ -20,7 +20,7 @@ use bevy::{prelude::*, render::render_resource::*};
 use bevy_ecs_tilemap::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-const CHUNK_SIZE: ChunkSize = ChunkSize(32, 32);
+const CHUNK_SIZE: ChunkSize = ChunkSize(8, 8);
 
 pub fn choose_levels(
     level_selection: Option<Res<LevelSelection>>,
@@ -63,20 +63,23 @@ pub fn choose_levels(
 pub fn apply_level_set(
     mut commands: Commands,
     ldtk_world_query: Query<(Entity, &LevelSet, &Children, &Handle<LdtkAsset>), Changed<LevelSet>>,
-    mut ldtk_level_query: Query<(&Handle<LdtkLevel>, &mut Map)>,
+    mut ldtk_level_query: ParamSet<(Query<(&Handle<LdtkLevel>, &mut Map)>, MapQuery)>,
     ldtk_assets: Res<Assets<LdtkAsset>>,
     level_assets: Res<Assets<LdtkLevel>>,
     ldtk_settings: Res<LdtkSettings>,
     mut level_events: EventWriter<LevelEvent>,
-    layers: Query<&Layer>,
-    chunks: Query<&Chunk>,
+    //layers: Query<&Layer>,
+    //chunks: Query<&Chunk>,
 ) {
     for (world_entity, level_set, children, ldtk_asset_handle) in ldtk_world_query.iter() {
         let mut previous_level_maps = HashMap::new();
+        let mut iid_to_uid = HashMap::new();
         for child in children.iter() {
-            if let Ok((level_handle, _)) = ldtk_level_query.get(*child) {
+            if let Ok((level_handle, _)) = ldtk_level_query.p0().get(*child) {
                 if let Some(ldtk_level) = level_assets.get(level_handle) {
                     previous_level_maps.insert(ldtk_level.level.iid.clone(), child);
+
+                    iid_to_uid.insert(ldtk_level.level.iid.clone(), ldtk_level.level.uid);
                 }
             }
         }
@@ -99,11 +102,14 @@ pub fn apply_level_set(
             let map_entity = previous_level_maps.get(iid).expect(
                 "The set of previous_iids and the keys in previous_level_maps should be the same.",
             );
-            if let Ok((_, mut map)) = ldtk_level_query.get_mut(**map_entity) {
-                clear_map(&mut commands, &mut map, &layers, &chunks);
-                map.despawn(&mut commands);
-                level_events.send(LevelEvent::Despawned(iid.clone()));
-            }
+            //if let Ok((_, mut map)) = ldtk_level_query.get_mut(**map_entity) {
+            //clear_map(&mut commands, &mut map, &layers, &chunks);
+            //map.despawn(&mut commands);
+            //level_events.send(LevelEvent::Despawned(iid.clone()));
+            //}
+            ldtk_level_query
+                .p1()
+                .despawn(&mut commands, *iid_to_uid.get(iid).unwrap() as u16);
         }
     }
 }
@@ -159,22 +165,22 @@ pub fn process_ldtk_world(
             .filter(|(_, l, _, _)| **l == changed_ldtk)
         {
             if let Some(ldtk_asset) = ldtk_assets.get(ldtk_handle) {
-                if let Some(children) = children {
-                    for child in children.iter() {
-                        if let Ok(mut map) = ldtk_level_query.get_mut(*child) {
-                            clear_map(&mut commands, &mut map, &layer_query, &chunk_query);
-                            map.despawn(&mut commands);
+                //if let Some(children) = children {
+                //for child in children.iter() {
+                //if let Ok(mut map) = ldtk_level_query.get_mut(*child) {
+                //clear_map(&mut commands, &mut map, &layer_query, &chunk_query);
+                //map.despawn(&mut commands);
 
-                            if let Some(level) =
-                                ldtk_asset.get_level(&LevelSelection::Uid(map.id as i32))
-                            {
-                                level_events.send(LevelEvent::Despawned(level.iid.clone()));
-                            }
-                        } else {
-                            commands.entity(*child).despawn_recursive();
-                        }
-                    }
-                }
+                //if let Some(level) =
+                //ldtk_asset.get_level(&LevelSelection::Uid(map.id as i32))
+                //{
+                //level_events.send(LevelEvent::Despawned(level.iid.clone()));
+                //}
+                //} else {
+                //commands.entity(*child).despawn_recursive();
+                //}
+                //}
+                //}
 
                 if ldtk_settings.set_clear_color == SetClearColor::FromEditorBackground {
                     clear_color.0 = ldtk_asset.project.bg_color;
@@ -260,17 +266,18 @@ fn clear_map(
                         tile_pos.1 / layer.settings.chunk_size.1,
                     );
                     if let Some(chunk_entity) = layer.get_chunk(chunk_pos) {
-                        if let Ok(chunk) = chunk_query.get(chunk_entity) {
-                            let chunk_tile_pos = chunk.to_chunk_pos(tile_pos);
-                            if let Some(tile) = chunk.get_tile_entity(chunk_tile_pos) {
-                                commands.entity(tile).despawn_recursive();
-                            }
-                        }
+                        //if let Ok(chunk) = chunk_query.get(chunk_entity) {
+                        //let chunk_tile_pos = chunk.to_chunk_pos(tile_pos);
+                        //if let Some(tile) = chunk.get_tile_entity(chunk_tile_pos) {
+                        //commands.entity(tile).despawn_recursive();
+                        //}
+                        //}
 
                         commands.entity(chunk_entity).despawn_recursive();
                     }
                 }
             }
+            commands.entity(layer_entity).despawn_recursive();
 
             map.remove_layer(commands, layer_id);
         }
@@ -385,12 +392,13 @@ fn spawn_level(
         let white_image_handle = images.add(white_image);
 
         if ldtk_settings.level_background == LevelBackground::Rendered {
-            let settings = LayerSettings::new(
+            let mut settings = LayerSettings::new(
                 MapSize(1, 1),
                 ChunkSize(1, 1),
                 TileSize(level.px_wid as f32, level.px_hei as f32),
                 TextureSize(level.px_wid as f32, level.px_hei as f32),
             );
+            settings.cull = false;
 
             let (mut layer_builder, layer_entity) =
                 LayerBuilder::<TileBundle>::new(commands, settings, map.id, layer_id);
@@ -538,6 +546,7 @@ fn spawn_level(
 
                     let mut settings =
                         LayerSettings::new(map_size, CHUNK_SIZE, tile_size, texture_size);
+                    settings.cull = false;
 
                     if let Some(tileset_definition) = tileset_definition {
                         settings.grid_size = Vec2::splat(layer_instance.grid_size as f32);
