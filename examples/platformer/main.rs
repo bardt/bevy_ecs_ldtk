@@ -2,7 +2,7 @@
 // Please run with `--release`.
 
 use bevy::prelude::*;
-use bevy_ecs_ldtk::prelude::*;
+use bevy_ecs_ldtk::{prelude::*, LdtkSystemLabel};
 
 use heron::prelude::*;
 
@@ -23,6 +23,16 @@ fn main() {
             set_clear_color: SetClearColor::FromLevelBackground,
             ..Default::default()
         })
+        .add_event::<systems::NewGameEvent>()
+        .add_system_to_stage(
+            CoreStage::PreUpdate,
+            systems::despawn_level.before(LdtkSystemLabel::PreSpawn),
+        )
+        .add_system_to_stage(
+            CoreStage::PreUpdate,
+            systems::respawn_level.after(LdtkSystemLabel::PreSpawn),
+        )
+        .add_system(systems::new_game)
         .add_startup_system(systems::setup)
         .add_system(systems::pause_physics_during_load)
         .add_system(systems::spawn_wall_collision)

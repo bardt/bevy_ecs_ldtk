@@ -64,6 +64,7 @@ pub fn apply_level_set(
     chunks: Query<&Chunk>,
 ) {
     for (world_entity, level_set, children, ldtk_asset_handle) in ldtk_world_query.iter() {
+        println!("apply_level_set");
         let mut previous_level_maps = HashMap::new();
         for child in children.iter() {
             if let Ok((level_handle, _)) = ldtk_level_query.get(*child) {

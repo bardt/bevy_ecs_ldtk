@@ -74,6 +74,55 @@ pub fn movement(
     }
 }
 
+pub struct NewGameEvent {
+    iid: String,
+}
+
+pub fn new_game(
+    input: Res<Input<KeyCode>>,
+    mut event_writer: EventWriter<NewGameEvent>,
+    level_selection: Res<LevelSelection>,
+    ldtk_assets: Res<Assets<LdtkAsset>>,
+    level_set_query: Query<&Handle<LdtkAsset>, With<LevelSet>>,
+) {
+    if input.just_pressed(KeyCode::N) {
+        println!("N pressed");
+        for ldtk_handle in level_set_query.iter() {
+            if let Some(ldtk_asset) = ldtk_assets.get(ldtk_handle) {
+                if let Some(level) = ldtk_asset.get_level(&level_selection) {
+                    event_writer.send(NewGameEvent {
+                        iid: level.iid.clone(),
+                    });
+                }
+            }
+        }
+    }
+}
+
+pub fn despawn_level(
+    mut event_reader: EventReader<NewGameEvent>,
+    mut level_set: Query<&mut LevelSet>,
+) {
+    for event in event_reader.iter() {
+        if let Some(mut level_set) = level_set.get_single_mut().ok() {
+            println!("Removing from level set");
+            level_set.iids.remove(&event.iid);
+        }
+    }
+}
+
+pub fn respawn_level(
+    mut event_reader: EventReader<NewGameEvent>,
+    mut level_set: Query<&mut LevelSet>,
+) {
+    for event in event_reader.iter() {
+        println!("Inserting into level set");
+        for mut level_set in level_set.iter_mut() {
+            level_set.iids.insert(event.iid.clone());
+        }
+    }
+}
+
 /// Spawns heron collisions for the walls of a level
 ///
 /// You could just insert a ColliderBundle in to the WallBundle,
@@ -121,6 +170,7 @@ pub fn spawn_wall_collision(
     });
 
     if !wall_query.is_empty() {
+        println!("Spawn walls");
         level_query.for_each(|(level_entity, level_handle)| {
             if let Some(level_walls) = level_to_wall_locations.get(&level_entity) {
                 let level = levels
@@ -478,7 +528,8 @@ pub fn ground_detection(
                         }
                     }
                     Err(_) => {
-                        panic!("If there's a collision, there should be an entity")
+                        // @TODO: should pause all in-game systems while respawning the level instead
+                        error!("If there's a collision, there should be an entity")
                     }
                 },
                 CollisionEvent::Stopped(a, b) => {
